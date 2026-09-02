@@ -10,7 +10,6 @@
     "types": ["node", "jest"],
     "sourceMap": true,
     "outDir": "./dist",
-    "incremental": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
