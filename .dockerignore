@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.git
+.claude
+test
+.env
+.env.*
+!.env.example
+*.log
+
+# Critical: a stale incremental build cache makes `nest build` skip emitting .js into a
+# dist/ that .dockerignore just excluded, producing an image with only .d.ts files.
+*.tsbuildinfo

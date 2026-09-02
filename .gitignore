@@ -1,0 +1,53 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# environment — never commit real credentials
+.env
+.env.local
+.env.test
+.env.*.local
+
+# prisma generated client
+node_modules/.prisma/
+prisma/generated/
+
+# tests & coverage
+coverage/
+*.lcov
+.coverage
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.pem
+
+# ---------------------------------------------------------------------------
+# AI tooling (ADF) — local development aid, not part of the submission.
+# The assignment asks for a deliberately small solution; AI usage is disclosed
+# in README.md instead. Drop these lines if the tooling should be shipped.
+# ---------------------------------------------------------------------------
+.claude/
+.agent/
+CLAUDE.md
+AGENTS.md
+.mcp.json
+.serena/
+repomix-output.xml
+__pycache__/
+
+# Assignment brief supplied by the reviewer — context, not a deliverable.
+TruckerPoints Developer Take-Home Assignment.pdf
+Requirement.txt

@@ -1,0 +1,38 @@
+// TruckerPoints — activity ingestion schema.
+// The composite unique on (providerId, externalEventId) is the database-level
+// idempotency guarantee; the application never relies on a read-then-write check.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Activity {
+  id              String   @id @default(uuid())
+  providerId      String
+  externalEventId String
+  driverId        String
+  activityType    String
+  pointsAwarded   Int
+  occurredAt      DateTime
+  createdAt       DateTime @default(now())
+
+  @@unique([providerId, externalEventId])
+  @@index([driverId])
+  @@map("activities")
+}
+
+model OutboxEvent {
+  id          String    @id @default(uuid())
+  eventType   String
+  payload     Json
+  createdAt   DateTime  @default(now())
+  publishedAt DateTime?
+
+  @@index([publishedAt])
+  @@map("outbox_events")
+}
