@@ -20,14 +20,29 @@ pnpm start:dev                       # http://localhost:3000 — Swagger at /api
 
 ```bash
 pnpm test        # 13 unit tests, no database needed
-pnpm test:e2e    # 12 API tests against Postgres (needs docker compose up)
+pnpm test:e2e    # 13 API tests against Postgres (needs docker compose up)
 pnpm lint
 pnpm build
 ```
 
+Or run the whole thing in containers, no local Node required:
+
+```bash
+docker compose --profile app up -d --build   # Postgres + migrations + the API
+curl localhost:3000/health                   # {"status":"ok"}
+```
+
+`migrate` and `api` sit behind the `app` profile, so a plain `docker compose up -d` still starts
+only PostgreSQL — the fast loop for local development, where the app runs on the host.
+
+**Migrations run as a one-shot `migrate` service, not from the API entrypoint.** With more than one
+API replica an entrypoint migration races itself; `api` waits on
+`condition: service_completed_successfully` instead. That service targets the Dockerfile's `build`
+stage on purpose — the runtime image is pruned of devDependencies, so it has no Prisma CLI.
+
 > If port 5432 is already taken by a local PostgreSQL install, set `POSTGRES_PORT` in `.env` (for
 > example `5433`) and point `DATABASE_URL` / `TEST_DATABASE_URL` at it. `docker-compose.yml` reads
-> that variable and defaults to 5432.
+> that variable and defaults to 5432. `API_PORT` does the same for the containerised API.
 
 The e2e suite runs against a separate `truckerpoints_test` database and **refuses to start** if
 `TEST_DATABASE_URL` is missing, rather than silently truncating development data.
@@ -47,7 +62,15 @@ POST /providers/:providerId/activities
 GET /providers/:providerId/activities/:externalEventId
   200 → the activity, only if it belongs to :providerId
   404 → unknown event, or an event belonging to a different provider
+
+GET /health
+  200 → { "status": "ok" }
 ```
+
+`/health` is **liveness only**, deliberately not a readiness check: it answers "is this process
+serving HTTP", which is what the container healthcheck and a restart policy act on. Adding a
+database ping would mean exporting `PrismaService` across a module boundary — more coupling than
+this endpoint is worth.
 
 | Activity type | Points |
 |---------------|--------|
@@ -151,9 +174,9 @@ loser needs its `activityId` to return an identical body.
 
 This is covered by a test, not just described:
 
-> `test/activities.e2e-spec.ts` → *"writes one activity and one outbox event when two identical
-> requests race"* — fires two `POST`s with `Promise.all` and asserts one 201, one 200, the same
-> `activityId`, exactly one activity row and exactly one outbox row.
+> `test/activities.e2e-spec.ts` → *"writes one activity and one outbox event when ten identical
+> requests race"* — fires ten `POST`s with `Promise.all` and asserts exactly one 201, nine 200s, a
+> single distinct `activityId`, exactly one activity row and exactly one outbox row.
 
 ## Provider isolation
 
@@ -266,11 +289,11 @@ Covered: point calculation for all four types (table-driven), duplicate handling
 event on replay, unsupported type rejected **with nothing persisted**, and two providers reusing one
 `externalEventId` producing two activities.
 
-**12 API tests** — the real Nest application over Supertest against real Postgres. Covered: 201 with
+**13 API tests** — the real Nest application over Supertest against real Postgres. Covered: 201 with
 50 points, replay returning 200 with the same `activityId` and exactly one row, cross-provider read
 returning 404, three malformed-body cases returning 400 with nothing persisted, unsupported type
-returning 422, the concurrency race described above, and the outbox payload being written exactly
-once and unpublished.
+returning 422, the ten-way concurrency race described above, the outbox payload being written exactly
+once and unpublished, and the liveness endpoint the container healthcheck depends on.
 
 No controller unit tests with a mocked use case — the e2e tests cover that path for real.
 

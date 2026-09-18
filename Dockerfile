@@ -4,12 +4,18 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm prisma generate && pnpm build && pnpm prune --prod
+RUN pnpm prisma generate && pnpm build
+
+# Pruning happens in its own stage so `build` keeps the Prisma CLI. The compose `migrate`
+# service targets `build` to run `prisma migrate deploy`; the runtime image cannot, since
+# `prisma` is a devDependency and is pruned away.
+FROM build AS prod-deps
+RUN pnpm prune --prod
 
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app/node_modules ./node_modules
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 EXPOSE 3000

@@ -1,4 +1,5 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpStatus } from '@nestjs/common';
+import { STATUS_CODES } from 'node:http';
 import type { Response } from 'express';
 import {
   ActivityNotFoundError,
@@ -25,6 +26,12 @@ export class DomainErrorFilter implements ExceptionFilter {
           // a different provider.
           HttpStatus.NOT_FOUND;
 
-    response.status(status).json({ statusCode: status, message: error.message });
+    response.status(status).json({
+      statusCode: status,
+      message: error.message,
+      // Mirrors the shape the ValidationPipe returns for a 400, so a client parses one
+      // error contract instead of two.
+      error: STATUS_CODES[status],
+    });
   }
 }

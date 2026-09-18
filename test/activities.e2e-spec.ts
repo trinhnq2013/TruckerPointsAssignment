@@ -126,23 +126,35 @@ describe('Activities API', () => {
   });
 
   describe('concurrent duplicates', () => {
-    it('writes one activity and one outbox event when two identical requests race', async () => {
-      const [a, b] = await Promise.all([
-        post('lkw-walter', podUpload),
-        post('lkw-walter', podUpload),
-      ]);
+    it('writes one activity and one outbox event when ten identical requests race', async () => {
+      const responses = await Promise.all(
+        Array.from({ length: 10 }, () => post('lkw-walter', podUpload)),
+      );
 
-      // One request created the row, the other replayed it. Which one wins is not
-      // deterministic, so assert on the pair rather than on a specific response.
-      expect([a.status, b.status].sort()).toEqual([200, 201]);
-      expect(bodyOf(a).activityId).toBe(bodyOf(b).activityId);
-      expect(bodyOf(a).pointsAwarded).toBe(50);
+      // Exactly one request created the row; the other nine lost the race on the unique
+      // index and replayed it. Which one wins is not deterministic, so assert on the
+      // distribution rather than on a specific response.
+      const statuses = responses.map((response) => response.status);
+      expect(statuses.filter((status) => status === 201)).toHaveLength(1);
+      expect(statuses.filter((status) => status === 200)).toHaveLength(9);
+
+      // Every caller got the same activity back, so a retrying provider can rely on the
+      // id regardless of which attempt happened to win.
+      const activityIds = new Set(responses.map((response) => bodyOf(response).activityId));
+      expect(activityIds.size).toBe(1);
+      expect(bodyOf(responses[0]).pointsAwarded).toBe(50);
 
       await expect(prisma.activity.count()).resolves.toBe(1);
 
-      // The losing transaction rolled back, so it left no outbox row behind. A second one
-      // would double-award points downstream in Gamification.
+      // The nine losing transactions rolled back, so they left no outbox rows behind.
+      // Each extra one would double-award points downstream in Gamification.
       await expect(prisma.outboxEvent.count()).resolves.toBe(1);
+    });
+  });
+
+  describe('health', () => {
+    it('reports liveness for the container healthcheck', async () => {
+      await request(server).get('/health').expect(200, { status: 'ok' });
     });
   });
 

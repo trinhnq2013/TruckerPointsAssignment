@@ -19,5 +19,51 @@ services:
       timeout: 5s
       retries: 10
 
+  # Both services below sit behind the `app` profile, so a plain `docker compose up -d`
+  # still starts only PostgreSQL — the fast loop for local development, where the app runs
+  # on the host via `pnpm start:dev`. `--profile app` brings up the containerised stack.
+
+  # Migrations run as a one-shot job rather than from the API entrypoint: with more than
+  # one API replica, an entrypoint migration races itself.
+  migrate:
+    profiles: ['app']
+    build:
+      context: .
+      target: build
+    container_name: truckerpoints-migrate
+    command: ['pnpm', 'prisma', 'migrate', 'deploy']
+    environment:
+      DATABASE_URL: postgresql://truckerpoints:truckerpoints@postgres:5432/truckerpoints?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    profiles: ['app']
+    build: .
+    container_name: truckerpoints-api
+    restart: unless-stopped
+    environment:
+      # Reaches PostgreSQL over the compose network, so the host port mapping is irrelevant.
+      DATABASE_URL: postgresql://truckerpoints:truckerpoints@postgres:5432/truckerpoints?schema=public
+      PORT: 3000
+    ports:
+      - '${API_PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - '-e'
+        - "fetch('http://localhost:3000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres-data:

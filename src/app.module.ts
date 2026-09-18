@@ -2,9 +2,11 @@ import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_PIPE } from '@nestjs/core';
 import { ActivitiesModule } from './activities/activities.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), ActivitiesModule],
+  controllers: [HealthController],
   providers: [
     {
       // Registered here rather than in main.ts so the e2e suite exercises exactly the
